@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Hook Finder</title>
+
+    <style>
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #111;
+            color: white;
+        }
+
+        .container {
+            width: min(1000px, 92%);
+            margin: 40px auto;
+        }
+
+        h1 {
+            font-size: 42px;
+            margin-bottom: 5px;
+        }
+
+        .subtitle {
+            color: #aaa;
+            margin-bottom: 30px;
+        }
+
+        .upload-box {
+            border: 2px dashed #444;
+            border-radius: 16px;
+            padding: 50px;
+            text-align: center;
+            background: #181818;
+        }
+
+        .upload-box:hover {
+            border-color: #777;
+        }
+
+        input[type="file"] {
+            margin: 20px 0;
+        }
+
+        button {
+            border: none;
+            border-radius: 10px;
+            padding: 12px 20px;
+            background: white;
+            color: black;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        button:hover {
+            opacity: 0.85;
+        }
+
+        #videoPreview {
+            width: 100%;
+            max-height: 600px;
+            margin-top: 30px;
+            border-radius: 14px;
+            background: black;
+            display: none;
+        }
+
+        #status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 10px;
+            background: #181818;
+            color: #aaa;
+        }
+
+        #results {
+            margin-top: 30px;
+        }
+
+        .hook {
+            background: #181818;
+            border: 1px solid #333;
+            padding: 20px;
+            margin-bottom: 15px;
+            border-radius: 14px;
+        }
+
+        .hook.best {
+            border: 2px solid #fff;
+        }
+
+        .score {
+            font-size: 30px;
+            font-weight: bold;
+        }
+
+        .timestamp {
+            color: #aaa;
+            margin: 8px 0;
+        }
+
+        .reason {
+            color: #ccc;
+        }
+
+        .transcript {
+            margin-top: 15px;
+            padding: 12px;
+            background: #222;
+            border-radius: 8px;
+        }
+
+        .error {
+            color: #ff7777;
+        }
+
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>🔥 Hook Finder</h1>
+
+    <div class="subtitle">
+        Upload a video and let AI find the strongest hooks.
+    </div>
+
+    <div class="upload-box">
+
+        <input
+            type="file"
+            id="videoInput"
+            accept="video/*"
+        >
+
+        <br>
+
+        <button id="analyzeButton">
+            Analyze Video
+        </button>
+
+    </div>
+
+    <video
+        id="videoPreview"
+        controls
+    ></video>
+
+    <div id="status">
+        Waiting for a video...
+    </div>
+
+    <div id="results"></div>
+
+</div>
+
+<script>
+
+const videoInput = document.getElementById("videoInput");
+const analyzeButton = document.getElementById("analyzeButton");
+const videoPreview = document.getElementById("videoPreview");
+const status = document.getElementById("status");
+const results = document.getElementById("results");
+
+
+// --------------------------------------------------
+// SHOW VIDEO
+// --------------------------------------------------
+
+videoInput.addEventListener("change", () => {
+
+    const file = videoInput.files[0];
+
+    if (!file) {
+        return;
+    }
+
+    const videoURL = URL.createObjectURL(file);
+
+    videoPreview.src = videoURL;
+    videoPreview.style.display = "block";
+
+    status.textContent =
+        `Selected: ${file.name}`;
+
+});
+
+
+// --------------------------------------------------
+// ANALYZE
+// --------------------------------------------------
+
+analyzeButton.addEventListener("click", async () => {
+
+    const file = videoInput.files[0];
+
+    if (!file) {
+
+        status.textContent =
+            "Please select a video first.";
+
+        return;
+    }
+
+    analyzeButton.disabled = true;
+
+    results.innerHTML = "";
+
+    status.textContent =
+        "⏳ Uploading video to Gemini...";
+
+    const formData = new FormData();
+
+    formData.append("video", file);
+
+
+    try {
+
+        const response = await fetch(
+            "/analyze",
+            {
+                method: "POST",
+                body: formData
+            }
+        );
+
+        const data = await response.json();
+
+
+        if (!data.success) {
+
+            throw new Error(
+                data.error || "Analysis failed."
+            );
+
+        }
+
+
+        status.textContent =
+            "✅ Analysis complete!";
+
+
+        displayResults(data.analysis);
+
+
+    } catch (error) {
+
+        console.error(error);
+
+        status.innerHTML =
+            `<span class="error">
+                ❌ ${error.message}
+            </span>`;
+
+    }
+
+
+    analyzeButton.disabled = false;
+
+});
+
+
+// --------------------------------------------------
+// DISPLAY RESULTS
+// --------------------------------------------------
+
+function displayResults(analysis) {
+
+    results.innerHTML = "";
+
+
+    // Summary
+
+    const summary = document.createElement("div");
+
+    summary.className = "hook";
+
+    summary.innerHTML = `
+
+        <h2>Video Summary</h2>
+
+        <p>
+            ${escapeHTML(
+                analysis.video_summary || ""
+            )}
+        </p>
+
+        <p>
+            <strong>Topic:</strong>
+            ${escapeHTML(
+                analysis.topic || ""
+            )}
+        </p>
+
+    `;
+
+    results.appendChild(summary);
+
+
+    // Hooks
+
+    const hooks = analysis.hooks || [];
+
+
+    hooks.forEach((hook, index) => {
+
+        const card =
+            document.createElement("div");
+
+        card.className =
+            "hook" +
+            (index === 0 ? " best" : "");
+
+
+        card.innerHTML = `
+
+            <h2>
+                ${index === 0 ? "🔥 " : ""}
+                Hook #${hook.rank}
+            </h2>
+
+            <div class="score">
+                ${hook.score}/100
+            </div>
+
+            <div class="timestamp">
+                ${formatTime(hook.start)}
+                →
+                ${formatTime(hook.end)}
+            </div>
+
+            <p>
+                <strong>Type:</strong>
+                ${escapeHTML(hook.type || "")}
+            </p>
+
+            <p class="reason">
+                ${escapeHTML(hook.reason || "")}
+            </p>
+
+            <div class="transcript">
+                ${escapeHTML(hook.transcript || "")}
+            </div>
+
+            <p>
+                <strong>Previous context required:</strong>
+                ${hook.requires_context ? "Yes" : "No"}
+            </p>
+
+            <button
+                onclick="
+                    previewHook(
+                        ${hook.start},
+                        ${hook.end}
+                    )
+                "
+            >
+                ▶ Preview Hook
+            </button>
+
+        `;
+
+
+        results.appendChild(card);
+
+    });
+
+}
+
+
+// --------------------------------------------------
+// PREVIEW HOOK
+// --------------------------------------------------
+
+function previewHook(start, end) {
+
+    videoPreview.currentTime = start;
+
+    videoPreview.play();
+
+
+    const stopAt = () => {
+
+        if (
+            videoPreview.currentTime >= end
+        ) {
+
+            videoPreview.pause();
+
+            videoPreview.removeEventListener(
+                "timeupdate",
+                stopAt
+            );
+
+        }
+
+    };
+
+
+    videoPreview.addEventListener(
+        "timeupdate",
+        stopAt
+    );
+
+}
+
+
+// --------------------------------------------------
+// TIME FORMAT
+// --------------------------------------------------
+
+function formatTime(seconds) {
+
+    seconds = Number(seconds) || 0;
+
+    const minutes =
+        Math.floor(seconds / 60);
+
+    const remaining =
+        Math.floor(seconds % 60);
+
+    return (
+        String(minutes).padStart(2, "0")
+        +
+        ":"
+        +
+        String(remaining).padStart(2, "0")
+    );
+
+}
+
+
+// --------------------------------------------------
+// BASIC HTML ESCAPING
+// --------------------------------------------------
+
+function escapeHTML(value) {
+
+    return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+
+}
+
+</script>
+
+</body>
+</html>
