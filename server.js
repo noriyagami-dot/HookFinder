@@ -10,16 +10,18 @@ const { GoogleGenAI } = require("@google/genai");
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 // --------------------------------------------------
 // CONFIG
 // --------------------------------------------------
 
-const UPLOAD_DIR = path.join(__dirname, "uploads");
+// Vercel's application filesystem is read-only.
+// /tmp is writable for temporary files.
+const UPLOAD_DIR = "/tmp/hookfinder-uploads";
 
 if (!fs.existsSync(UPLOAD_DIR)) {
-    fs.mkdirSync(UPLOAD_DIR);
+    fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 }
 
 const upload = multer({
